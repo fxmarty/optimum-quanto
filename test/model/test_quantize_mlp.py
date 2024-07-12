@@ -81,7 +81,7 @@ def _test_quantize_mlp(weights, activations, optimizer, frozen, device):
     assert_similar(output, qoutput, atol=1e-2)
 
 
-@pytest.mark.parametrize("weights", [qint8], ids=["w-qint8"])
+@pytest.mark.parametrize("weights", [qint8, qfloat8_e4m3fn], ids=["w-qint8", "w-float8_e4m3fn"])
 @pytest.mark.parametrize("frozen", [True, False], ids=["frozen", "non-frozen"])
 def test_quantize_mlp_weights_only(weights, frozen, device):
     _test_quantize_mlp(weights, None, None, frozen, device)
