@@ -76,7 +76,7 @@ def evaluate(
     if metric == "prefill-latency":
         return prefill_latency(model, device, batch_size=batch_size, prompt_length=512, iterations=5)
     elif metric == "decode-latency":
-        return decode_latency(model, tokenizer, device, batch_size=batch_size, nb_tokens=512, iterations=5)
+        return decode_latency(model, tokenizer, device, batch_size=batch_size, nb_tokens=10, iterations=2)
     elif metric == "prediction":
         return prediction_accuracy(model, tokenizer, batch_size)
     elif metric == "perplexity":

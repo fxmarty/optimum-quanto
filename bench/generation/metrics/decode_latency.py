@@ -19,6 +19,7 @@ import numpy as np
 import torch
 from tqdm.auto import tqdm
 from transformers import GenerationConfig
+from torch.profiler import ProfilerActivity, profile
 
 
 def decode_latency(model, tokenizer, device, batch_size=1, nb_tokens=512, iterations=10):
@@ -74,18 +75,27 @@ def decode_latency(model, tokenizer, device, batch_size=1, nb_tokens=512, iterat
     input_ids = torch.randint(1, model.config.vocab_size - 1, size=(batch_size, 1)).to(device)
     masks = torch.ones(batch_size, 1, dtype=torch.int32).to(device)
 
-    for _ in tqdm(range(iterations)):
-        start_event = timing_event(device)
-        end_event = timing_event(device)
-        synchronize(device)
-        start_event.record()
+    with profile(
+        activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+        record_shapes=True,
+        profile_memory=True,
+        with_stack=True,
+    ) as prof:
+        for _ in range(iterations):
+            # start_event = timing_event(device)
+            # end_event = timing_event(device)
+            # synchronize(device)
+            # start_event.record()
 
-        _ = model.generate(input_ids, attention_mask=masks, generation_config=generation_config)
-        end_event.record()
-        synchronize(device)
+            # _ = model.generate(input_ids, attention_mask=masks, generation_config=generation_config)
+            # end_event.record()
+            # synchronize(device)
 
-        latency_ms = start_event.elapsed_time(end_event)
-        latencies.append(latency_ms)
+            # latency_ms = start_event.elapsed_time(end_event)
+            _ = model.generate(input_ids, attention_mask=masks, generation_config=generation_config)
+
+            latencies.append(5)
+    prof.export_chrome_trace("trace.json")
 
     if device.type == "cuda":
         peak_memory = torch.cuda.max_memory_allocated()
