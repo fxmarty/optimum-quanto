@@ -94,3 +94,8 @@ define(
     " int size_k)"
     " -> Tensor",
 )
+
+define(
+    "gptq_marlin_repack",
+    "(Tensor b_q_weight," " Tensor perm," " int size_k," " int size_n," " int num_bits)" " -> Tensor",
+)
