@@ -19,29 +19,6 @@ import torch
 from ..qbytes import QBytesTensor
 
 
-# https://github.com/IST-DASLab/marlin/blob/2f6d7c10e124b3c5fa29ff8d77d568bd7af3274c/marlin/__init__.py#L40C1-L68C54
-def _get_perms() -> Tuple[List[int], List[int]]:
-    scale_perm = []
-    for i in range(8):
-        scale_perm.extend([i + 8 * j for j in range(8)])
-    scale_perm_single = []
-    for i in range(4):
-        scale_perm_single.extend([2 * i + j for j in [0, 1, 8, 9, 16, 17, 24, 25]])
-    return scale_perm, scale_perm_single
-
-
-_scale_perm, _scale_perm_single = _get_perms()
-
-
-def permute_scales(scales: torch.Tensor):
-    out_features = scales.shape[1]
-    if scales.shape[0] == 1:
-        scales = scales.reshape((-1, len(_scale_perm_single)))[:, _scale_perm_single]
-    else:
-        scales = scales.reshape((-1, len(_scale_perm)))[:, _scale_perm]
-    return scales.reshape((-1, out_features)).contiguous()
-
-
 def pack_fp8_as_int32(fp8_tensor: torch.Tensor) -> torch.Tensor:
     """
     Repack FP8 weights to gptq format (packed int32 elements).
@@ -69,27 +46,6 @@ def pack_fp8_as_int32(fp8_tensor: torch.Tensor) -> torch.Tensor:
         packed.bitwise_or_(byte_tensor[:, i].to(torch.int32) << i * 8)
 
     return packed
-
-
-def repack_fp8_for_marlin(weight: torch.Tensor, scale: torch.Tensor):
-    """
-    Repack FP8 tensor for GPTQ-Marlin.
-    """
-
-    out_features, in_features = weight.shape
-
-    # Torch linear layers weights with shape [out_features, in_features],
-    # GPTQ-quantized weights use [in_feateres/pack_factor, in_features],
-    # so transpose before packing.
-    qweight = pack_fp8_as_int32(weight.t())
-
-    perm = torch.empty(0, dtype=torch.int, device=qweight.device)
-    repacked = torch.ops.quanto.gptq_marlin_repack(qweight, perm, in_features, out_features, 8)
-
-    scales = scale.reshape(1, 1).repeat(1, out_features)
-    scales = permute_scales(scales)
-
-    return repacked, scales
 
 
 class MarlinF8QBytesTensor(QBytesTensor):

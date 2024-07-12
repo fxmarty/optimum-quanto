@@ -17,6 +17,7 @@ import torch
 from helpers import assert_similar, random_tensor
 
 from optimum.quanto import AWQPackedTensor, AWQPacking
+from optimum.quanto.tensor.marlin.fp8_packed import pack_fp8_as_int32
 
 
 @pytest.mark.parametrize("batch_size", [1, 10, None], ids=["single", "batched", "static"])
@@ -91,35 +92,6 @@ def test_gemm_fp16_int4(batch_size, tokens, in_features, out_features):
     pt_outputs = torch.matmul(inputs, other_t)
     # Verify the results are similar
     assert_similar(lib_outputs, pt_outputs, rtol=5e-3)
-
-
-def pack_fp8_as_int32(fp8_tensor: torch.Tensor) -> torch.Tensor:
-    """
-    Repack FP8 weights to gptq format (packed int32 elements).
-    """
-    assert fp8_tensor.dtype == torch.float8_e4m3fn
-
-    if fp8_tensor.shape[0] % 4 != 0:
-        raise ValueError(f"Leading tensor dimension is not divisable by 4: {fp8_tensor.shape[0]}")
-
-    # Reshape to prepare for packing
-    reshaped = fp8_tensor.reshape(-1, 4, *fp8_tensor.shape[1:])
-
-    # Convert fp8 to uint8 (byte) representation
-    byte_tensor = reshaped.view(torch.uint8)
-
-    # Pack 4 uint8 values into one int32
-    packed = torch.zeros(
-        fp8_tensor.shape[0] // 4,
-        fp8_tensor.shape[1],
-        dtype=torch.int32,
-        device=fp8_tensor.device,
-    )
-
-    for i in range(4):
-        packed.bitwise_or_(byte_tensor[:, i].to(torch.int32) << i * 8)
-
-    return packed
 
 
 @pytest.mark.skipif(
