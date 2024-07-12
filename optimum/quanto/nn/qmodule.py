@@ -216,6 +216,7 @@ class QModuleMixin(ABC):
         of the weight parameter to the graph and allow gradients to be propagated to the
         underlying weight float values.
         """
+        print("in qweight property")
         if self.weight_qtype is None:
             # QModule that does not quantize its weights
             return None

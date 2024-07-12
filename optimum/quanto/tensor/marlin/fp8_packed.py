@@ -63,16 +63,26 @@ class MarlinF8QBytesTensor(QBytesTensor):
         assert axis is None
         assert data.ndim == 2
 
-        out_features, in_features = data.shape
-        self._workspace = torch.zeros(out_features // 64 * 16, dtype=torch.int, device=data.device)
+        # When freezing (`model.freeze()`), the data is already packed on int32.
+        if data.dtype != torch.int32:
+            out_features, in_features = data.shape
+            self._workspace = torch.zeros(out_features // 64 * 16, dtype=torch.int, device=data.device)
 
-        scale = scale.repeat(1, out_features).to(data.device)
-        data_int32 = pack_fp8_as_int32(data.T)
-        perm = torch.empty(0, dtype=torch.int, device=data.device)
+            scale = scale.repeat(1, out_features).to(data.device)
+            data_int32 = pack_fp8_as_int32(data.T)
+            perm = torch.empty(0, dtype=torch.int, device=data.device)
 
-        data_repack = torch.ops.quanto.gptq_marlin_repack(
-            b_q_weight=data_int32, perm=perm, size_k=in_features, size_n=out_features, num_bits=8
-        )
+            data_repack = torch.ops.quanto.gptq_marlin_repack(
+                b_q_weight=data_int32, perm=perm, size_k=in_features, size_n=out_features, num_bits=8
+            )
+        elif data.dtype == torch.int32 and scale.ndim == 2:
+            data_repack = data
+
+            out_features = data_repack.shape[1] // 4
+            self._workspace = torch.zeros(out_features // 64 * 16, dtype=torch.int, device=data.device)
+        else:
+            raise ValueError("This should not happen. Please open an issue.")
+        
         super().__init__(qtype, axis, size, stride, data_repack, scale, zeropoint)
 
     def dequantize(self):
