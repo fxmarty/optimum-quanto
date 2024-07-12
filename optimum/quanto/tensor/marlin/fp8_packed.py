@@ -105,11 +105,20 @@ class MarlinF8QBytesTensor(QBytesTensor):
         if requires_grad:
             raise NotImplementedError("Backward with Marlin FP8 is not implemented.")
 
-        assert axis == 0
+        assert axis is None
+        assert data.ndim == 2
 
-        out_features = data.shape[0]
+        out_features, in_features = data.shape
         self._workspace = torch.zeros(out_features // 64 * 16, dtype=torch.int, device=data.device)
-        super().__init__(qtype, axis, size, stride, data, scale, zeropoint)
+
+        scale = scale.repeat(1, out_features).to(data.device)
+        data_int32 = pack_fp8_as_int32(data.T)
+        perm = torch.empty(0, dtype=torch.int, device=data.device)
+
+        data_repack = torch.ops.quanto.gptq_marlin_repack(
+            b_q_weight=data_int32, perm=perm, size_k=in_features, size_n=out_features, num_bits=8
+        )
+        super().__init__(qtype, axis, size, stride, data_repack, scale, zeropoint)
 
     def dequantize(self):
         # TODO: implement

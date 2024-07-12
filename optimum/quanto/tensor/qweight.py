@@ -31,14 +31,14 @@ default_symmetric_optimizer = AbsmaxOptimizer()
 def quantize_weight(
     t: torch.Tensor,
     qtype: qtype,
-    axis: int,
+    axis: Optional[int],
     group_size: Optional[int] = None,
     optimizer: Optional[Optimizer] = None,
     zeropoint: bool = False,
-):
+) -> torch.Tensor:
     """Quantize a weight Tensor.
 
-    Weights are always quantized per-axis.
+    Weights can be quantized per-axis or per-tensor.
 
     Args:
         t (`torch.Tensor`): the weight Tensor to quantize
@@ -54,8 +54,6 @@ def quantize_weight(
     Returns:
         A quantized Tensor.
     """
-    if axis not in (0, -1):
-        raise ValueError("axis parameter must be 0 (first axis) or -1 (last axis)")
     if qtype.bits == 8:
         if optimizer is None:
             optimizer = default_symmetric_optimizer
@@ -67,6 +65,7 @@ def quantize_weight(
         if axis is not None and t.shape[axis] == 1:
             # Quantizing along an axis of dimension 1 means quantizing per-tensor
             axis = None
+        # e.g. if axis=0, scale will be of shape [t.shape[0], 1].
         scale = optimizer(t, qtype.bits, axis)
         return SymmetricQuantizer.apply(t, qtype, axis, scale)
     if optimizer is None:

@@ -25,6 +25,7 @@ from ..tensor import (
     QTensor,
     qint2,
     qint4,
+    qfloat8_e4m3fn,
     qtype,
     qtypes,
     quantize_activation,
@@ -221,11 +222,17 @@ class QModuleMixin(ABC):
         if isinstance(self.weight, QTensor):
             # Frozen QModule
             return self.weight
-        # Quantize dynamically the weights per-axis
+
+        if self.weight_qtype == qfloat8_e4m3fn and self.activation_qtype is None:
+            # Marlin FP8 kernel only supports per-tensor fp8 quantization.
+            axis = None
+        else:
+            axis = 0
+
         return quantize_weight(
             self.weight,
             qtype=self.weight_qtype,
-            axis=0,
+            axis=axis,
             group_size=self.weight_group_size,
             optimizer=self.optimizer,
         )

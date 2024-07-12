@@ -124,13 +124,13 @@ class QTensorLinear(torch.autograd.Function):
             input_flat = input.view(-1, input.shape[-1])
             output = torch.ops.quanto.fp8_marlin(
                 input_flat,
-                other._data,
-                other._scale,
-                other._workspace,
-                8,
-                input_flat.shape[0],
-                other._scale.shape[1],
-                input_flat.shape[1],
+                b_q_weight=other._data,
+                b_scales=other._scale.to(input_flat.dtype),
+                workspace=other._workspace,
+                num_bits=8,
+                size_m=input_flat.shape[0],
+                size_n=other._scale.shape[1],
+                size_k=input_flat.shape[1],
             )
             output = output.reshape(input.shape[:-1] + (other._scale.shape[1],))
         elif isinstance(other, QBytesTensor):
