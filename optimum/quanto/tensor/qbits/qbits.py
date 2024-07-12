@@ -17,7 +17,8 @@ import ast
 import torch
 from torch.autograd import Function
 
-from ..qtensor import QTensor, qfallback
+from ..qtensor import QTensor
+from ..qtensor import qfallback
 from ..qtype import qint4, qtypes
 from .group import ungroup
 from .packed import PackedTensor

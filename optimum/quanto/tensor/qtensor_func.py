@@ -16,10 +16,10 @@ from functools import partial
 
 import torch
 
-from .marlin import MarlinF8QBytesTensor
-from .qbits import AWQBitsTensor, TinyGemmQBitsTensor
-from .qbytes import QBytesTensor
-from .qtensor import qfallback
+# from .marlin import MarlinF8QBytesTensor
+# from .qbits import AWQBitsTensor, TinyGemmQBitsTensor
+# from .qbytes import QBytesTensor
+# from .fallback import qfallback
 
 
 __all__ = ["get_qtensor_func", "register_qtensor_func"]
@@ -56,21 +56,6 @@ def has_compatible_shallow_copy_type(func, input: torch.Tensor, from_: torch.Ten
     return False
 
 
-# Below is a list of functions that we always want to operate on dequantized inputs
-# We therefore provide a dispatched method that does it explicitly.
-@register_qtensor_func(
-    [
-        torch.nn.functional.cross_entropy,
-        torch.nn.functional.cosine_similarity,
-        torch.nn.functional.layer_norm,
-        torch.nn.functional.log_softmax,
-        torch.topk,
-    ]
-)
-def unsupported_op(func, *args, **kwargs):
-    return qfallback(func, *args, **kwargs)
-
-
 class QTensorLinear(torch.autograd.Function):
     """Quantized linear function.
 
@@ -94,7 +79,7 @@ class QTensorLinear(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input, other, bias):
         ctx.save_for_backward(input, other)
-        if isinstance(other, AWQBitsTensor):
+        if other.__class__.__name__ == "AWQBitsTensor":
             if type(input) != torch.Tensor:
                 input = input.dequantize()
             out_features, in_features = other.shape
@@ -110,7 +95,7 @@ class QTensorLinear(torch.autograd.Function):
                 bits=4,
                 group_size=other._group_size,
             )
-        elif isinstance(other, TinyGemmQBitsTensor):
+        elif other.__class__.__name__ == "TinyGemmQBitsTensor":
             if type(input) != torch.Tensor:
                 input = input.dequantize()
             in_features = input.shape[-1]
@@ -120,7 +105,7 @@ class QTensorLinear(torch.autograd.Function):
                 input.view(-1, in_features), other._data._data, other._group_size, other._scale_shift
             )
             output = output.view(output_shape)
-        elif isinstance(other, MarlinF8QBytesTensor):
+        elif other.__class__.__name__ == "MarlinF8QBytesTensor":
             input_flat = input.view(-1, input.shape[-1])
             output = torch.ops.quanto.fp8_marlin(
                 input_flat,
@@ -133,8 +118,8 @@ class QTensorLinear(torch.autograd.Function):
                 size_k=input_flat.shape[1],
             )
             output = output.reshape(input.shape[:-1] + (other._scale.shape[1],))
-        elif isinstance(other, QBytesTensor):
-            if isinstance(input, QBytesTensor):
+        elif other.__class__.__name__ == "QBytesTensor":
+            if input.__class__.__name__ == "QBytesTensor":
                 output = torch.ops.quanto.qbytes_mm(input._data, other._data, input._scale * other._scale)
             else:
                 output = torch.ops.quanto.qbytes_mm(input, other._data, other._scale)

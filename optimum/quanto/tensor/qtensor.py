@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import torch
+from .qtensor_func import get_qtensor_func, register_qtensor_func
 from torch.utils import _pytree as pytree
 
-
-__all__ = ["QTensor", "qfallback"]
+__all__ = ["QTensor"]
 
 
 def qfallback(callable, *args, **kwargs):
@@ -27,6 +27,20 @@ def qfallback(callable, *args, **kwargs):
     """
     args, kwargs = pytree.tree_map_only(QTensor, lambda x: x.dequantize(), (args, kwargs or {}))
     return callable(*args, **kwargs)
+
+# Below is a list of functions that we always want to operate on dequantized inputs
+# We therefore provide a dispatched method that does it explicitly.
+@register_qtensor_func(
+    [
+        torch.nn.functional.cross_entropy,
+        torch.nn.functional.cosine_similarity,
+        torch.nn.functional.layer_norm,
+        torch.nn.functional.log_softmax,
+        torch.topk,
+    ]
+)
+def unsupported_op(func, *args, **kwargs):
+    return qfallback(func, *args, **kwargs)
 
 
 class QTensor(torch.Tensor):
@@ -82,7 +96,6 @@ class QTensor(torch.Tensor):
 
         This second dispatch phase is specific to each QTensor subclass.
         """
-        from .qtensor_func import get_qtensor_func
 
         kwargs = kwargs or {}
 
