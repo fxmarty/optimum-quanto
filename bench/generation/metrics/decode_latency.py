@@ -74,6 +74,9 @@ def decode_latency(model, tokenizer, device, batch_size=1, nb_tokens=512, iterat
     input_ids = torch.randint(1, model.config.vocab_size - 1, size=(batch_size, 1)).to(device)
     masks = torch.ones(batch_size, 1, dtype=torch.int32).to(device)
 
+    # warmup
+    _ = model.generate(input_ids, attention_mask=masks, generation_config=generation_config)
+
     for _ in tqdm(range(iterations)):
         start_event = timing_event(device)
         end_event = timing_event(device)
