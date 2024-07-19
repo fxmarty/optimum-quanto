@@ -82,20 +82,35 @@ define(
     " -> Tensor",
 )
 
-define(
-    "fp8_marlin",
-    "(Tensor a,"
-    " Tensor b_q_weight,"
-    " Tensor b_scales,"
-    " Tensor workspace,"
-    " int num_bits,"
-    " int size_m,"
-    " int size_n,"
-    " int size_k)"
-    " -> Tensor",
-)
+# define(
+#     "fp8_marlin",
+#     "(Tensor a,"
+#     " Tensor b_q_weight,"
+#     " Tensor b_scales,"
+#     " Tensor workspace,"
+#     " int num_bits,"
+#     " int size_m,"
+#     " int size_n,"
+#     " int size_k)"
+#     " -> Tensor",
+# )
 
-define(
-    "gptq_marlin_repack",
-    "(Tensor b_q_weight," " Tensor perm," " int size_k," " int size_n," " int num_bits)" " -> Tensor",
-)
+# define(
+#     "gptq_marlin_repack",
+#     "(Tensor b_q_weight," " Tensor perm," " int size_k," " int size_n," " int num_bits)" " -> Tensor",
+# )
+
+@torch.library.impl_abstract("quanto_ext::fp8_marlin_gemm")
+def _(
+    input,
+    b_q_weight,
+    b_scales,
+    workspace,
+    num_bits,
+    size_m,
+    size_n,
+    size_k,
+):
+    assert input.dim() == 2
+    assert b_q_weight.dim() == 2
+    return input.new_empty(input.shape[0], size_n)

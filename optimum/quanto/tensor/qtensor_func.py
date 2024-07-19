@@ -21,6 +21,9 @@ import torch
 # from .qbytes import QBytesTensor
 # from .fallback import qfallback
 
+# This is required to be able to access `torch.ops.quanto_ext.*` members defined in C++ through `TORCH_LIBRARY`. 
+from optimum.quanto.library.ext.cuda import ext  # noqa: F401
+
 
 __all__ = ["get_qtensor_func", "register_qtensor_func"]
 
@@ -79,6 +82,11 @@ class QTensorLinear(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input, other, bias):
         ctx.save_for_backward(input, other)
+        return QTensorLinear._forward(input, other, bias)
+        
+
+    @staticmethod
+    def _forward(input, other, bias):
         if other.__class__.__name__ == "AWQBitsTensor":
             if type(input) != torch.Tensor:
                 input = input.dequantize()
@@ -106,18 +114,24 @@ class QTensorLinear(torch.autograd.Function):
             )
             output = output.view(output_shape)
         elif other.__class__.__name__ == "MarlinF8QBytesTensor":
-            input_flat = input.view(-1, input.shape[-1])
-            output = torch.ops.quanto.fp8_marlin(
-                input_flat,
+            input_shape = input.shape
+
+            if input.ndim > 2:
+                input = input.view(-1, input_shape[-1])
+            
+            output = torch.ops.quanto_ext.fp8_marlin_gemm(
+                input,
                 b_q_weight=other._data,
-                b_scales=other._scale.to(input_flat.dtype),
+                b_scales=other._scale,  # .to(input.dtype)
                 workspace=other._workspace,
                 num_bits=8,
-                size_m=input_flat.shape[0],
+                size_m=input.shape[0],
                 size_n=other._scale.shape[1],
-                size_k=input_flat.shape[1],
+                size_k=input.shape[1],
             )
-            output = output.reshape(input.shape[:-1] + (other._scale.shape[1],))
+
+            if len(input_shape) > 2:
+                output = output.reshape(input_shape[:-1] + (other._scale.shape[1],))
         elif other.__class__.__name__ == "QBytesTensor":
             if input.__class__.__name__ == "QBytesTensor":
                 output = torch.ops.quanto.qbytes_mm(input._data, other._data, input._scale * other._scale)
@@ -148,4 +162,7 @@ class QTensorLinear(torch.autograd.Function):
 
 @register_qtensor_func([torch.nn.functional.linear])
 def linear(func, input, other, bias=None):
-    return QTensorLinear.apply(input, other, bias)
+    if input.requires_grad:
+        return QTensorLinear.apply(input, other, bias)
+    else:
+        return QTensorLinear._forward(input, other, bias)

@@ -66,6 +66,7 @@ class QBytesTensor(QTensor):
         """
         from .marlin import MarlinF8QBytesTensor
 
+        print("here qtype", qtype)
         if (
             qtype == qtypes["qfloat8_e4m3fn"]
             and scale.dtype in [torch.float16, torch.bfloat16]
@@ -74,7 +75,9 @@ class QBytesTensor(QTensor):
             and axis is None
             and torch.cuda.get_device_capability(data.device)[0] >= 8
         ):
+            print("INIT MarlinF8QBytesTensor")
             return MarlinF8QBytesTensor(qtype, axis, size, stride, data, scale, requires_grad)
+        print("INIT QBytesTensor")
         return QBytesTensor(qtype, axis, size, stride, data, scale, requires_grad)
 
     @staticmethod
