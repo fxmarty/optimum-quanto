@@ -102,6 +102,9 @@ def test_gemm_fp16_int4(batch_size, tokens, in_features, out_features):
 @pytest.mark.parametrize("in_features, out_features", [(256, 256), (512, 256)])
 @pytest.mark.parametrize("dtype", [torch.bfloat16, torch.float16], ids=["bf16", "fp16"])
 def test_fp8_marlin(tokens, in_features, out_features, dtype):
+    # This is required to be able to access `torch.ops.quanto_ext.*` members defined in C++ through `TORCH_LIBRARY`.
+    from optimum.quanto.library.ext.cuda import ext  # noqa: F401
+
     device = torch.device("cuda")
     input_shape = (tokens, in_features)
     inputs = torch.rand(input_shape, dtype=dtype, device=device)
@@ -110,14 +113,14 @@ def test_fp8_marlin(tokens, in_features, out_features, dtype):
     other_data_int32 = pack_fp8_as_int32(other_data)
     perm = torch.empty(0, dtype=torch.int, device=device)
 
-    other_data_repack = torch.ops.quanto.gptq_marlin_repack(
+    other_data_repack = torch.ops.quanto_ext.gptq_marlin_repack(
         b_q_weight=other_data_int32, perm=perm, size_k=in_features, size_n=out_features, num_bits=8
     )
     other_scale = torch.rand(1, dtype=dtype, device=device)
     other_scale = other_scale.repeat(1, out_features)
 
     workspace = torch.zeros(out_features // 64 * 16, dtype=torch.int, device=device)
-    lib_outputs = torch.ops.quanto.fp8_marlin(
+    lib_outputs = torch.ops.quanto_ext.fp8_marlin_gemm(
         a=inputs,
         b_q_weight=other_data_repack,
         b_scales=other_scale,

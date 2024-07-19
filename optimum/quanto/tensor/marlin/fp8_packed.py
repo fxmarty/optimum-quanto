@@ -12,10 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+import ast
 import torch
 
 from ..qbytes import QBytesTensor
+from ..qtype import qtypes
+
+# This is required to be able to access `torch.ops.quanto_ext.*` members defined in C++ through `TORCH_LIBRARY`. 
+from optimum.quanto.library.ext.cuda import ext  # noqa: F401
 
 
 def pack_fp8_as_int32(fp8_tensor: torch.Tensor) -> torch.Tensor:
@@ -72,7 +76,7 @@ class MarlinF8QBytesTensor(QBytesTensor):
             data_int32 = pack_fp8_as_int32(data.T)
             perm = torch.empty(0, dtype=torch.int, device=data.device)
 
-            data_repack = torch.ops.quanto.gptq_marlin_repack(
+            data_repack = torch.ops.quanto_ext.gptq_marlin_repack(
                 b_q_weight=data_int32, perm=perm, size_k=in_features, size_n=out_features, num_bits=8
             )
         elif data.dtype == torch.int32 and scale.ndim == 2:
@@ -98,10 +102,23 @@ class MarlinF8QBytesTensor(QBytesTensor):
         raise NotImplementedError()
 
     def __tensor_flatten__(self):
-        # TODO implement
-        raise NotImplementedError()
+        inner_tensors = ["_data", "_scale", "_workspace"]
+        meta = {
+            "qtype": self._qtype.name,
+            "axis": str(self._axis),
+            "size": str(list(self.size())),
+            "stride": str(list(self.stride())),
+        }
+        return inner_tensors, meta
 
     @staticmethod
     def __tensor_unflatten__(inner_tensors, meta, outer_size, outer_stride):
-        # TODO implement
-        raise NotImplementedError()
+        assert len(inner_tensors) == 3
+        assert len(meta) == 4
+        data, scale = inner_tensors["_data"], inner_tensors["_scale"]
+        # Meta should only contain strings, AST compatible except qtype
+        qtype = qtypes[meta["qtype"]]
+        axis = ast.literal_eval(meta["axis"])
+        size = ast.literal_eval(meta["size"])
+        stride = ast.literal_eval(meta["stride"])
+        return QBytesTensor(qtype, axis, size, stride, data, scale)
