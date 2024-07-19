@@ -82,6 +82,7 @@ class QTensor(torch.Tensor):
 
         This second dispatch phase is specific to each QTensor subclass.
         """
+        # TODO: Having this import here adds an overhead `<frozen importlib._bootstrap>(398): parent`, should be refactored
         from .qtensor_func import get_qtensor_func
 
         kwargs = kwargs or {}
