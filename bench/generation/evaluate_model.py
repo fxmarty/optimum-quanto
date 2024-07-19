@@ -16,6 +16,7 @@ import argparse
 
 import torch
 from datasets import load_dataset
+from metrics.latency import latency
 from metrics.prefill_latency import prefill_latency
 from metrics.decode_latency import decode_latency
 from metrics.perplexity import perplexity
@@ -72,8 +73,10 @@ def evaluate(
     weights = dtype if weights == "none" else weights
     activations = dtype if activations == "none" else activations
     print(f"Evaluating {model_id} {metric} with {weights} weights and {activations} activations.")
-    
-    if metric == "prefill-latency":
+
+    if metric == "latency":
+        return latency(model, tokenizer, device, batch_size=batch_size, prompt_length=512, nb_tokens=512, iterations=5)
+    elif metric == "prefill-latency":
         return prefill_latency(model, device, batch_size=batch_size, prompt_length=512, iterations=5)
     elif metric == "decode-latency":
         return decode_latency(model, tokenizer, device, batch_size=batch_size, nb_tokens=512, iterations=5)
@@ -93,7 +96,7 @@ def main():
         help="The name of the trained Model.",
     )
     parser.add_argument("--device", type=str, default=None, help="The device to use for generation.")
-    parser.add_argument("--metric", type=str, default="prediction", choices=["prefill-latency", "decode-latency", "prediction", "perplexity"])
+    parser.add_argument("--metric", type=str, default="prediction", choices=["latency", "prefill-latency", "decode-latency", "prediction", "perplexity"])
     parser.add_argument("--quantizer", type=str, default="quanto", choices=["quanto", "awq", "bnb", "hqq"])
     parser.add_argument(
         "--weights",
